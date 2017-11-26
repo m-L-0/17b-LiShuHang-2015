@@ -25,6 +25,7 @@ with tf.Session() as sess:
 
     predicted_num = 0
     # 对每个图片进行预测
+    f = open("../m-L-0/test.txt", "w")
     for i in range(test_images.shape[0]):
         # 最近k个样本的标记索引
         nearest_index_res = sess.run(
@@ -41,6 +42,8 @@ with tf.Session() as sess:
 
         predicted_class = sess.run(
             tf.argmax(tf.reduce_sum(nearest_label, 0), 0))
+        f.write(str(predicted_class))
+        f.write("\n")        
         true_class = sess.run(tf.argmax(test_labels[i]))
         if predicted_class == true_class:
             predicted_num += 1
