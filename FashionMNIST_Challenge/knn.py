@@ -5,7 +5,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets(
     "/home/vbuo/fashion-mnist/data/fashion", one_hot=True)
 
-k = 5
+k = 7
 test_num = 1000
 
 train_images, train_labels = mnist.train.next_batch(55000)
