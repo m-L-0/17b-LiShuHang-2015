@@ -16,4 +16,6 @@
 
 5. [统计每类字符的数量与比例并利用图表展示(直方图、饼状图)](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/view.ipynb)
 
-6. [我的总结](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/%E6%80%BB%E7%BB%93.md)
+6. [模型](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/model/graph.pb)
+
+7. [我的总结](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/%E6%80%BB%E7%BB%93.md)
