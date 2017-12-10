@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # 读取数据
-path = '/home/vbuo/m-L-1/车牌字符识别训练数据/汉字字母数字'
+path = '/home/vbuo/m-L-1/车牌字符识别训练数据/字母数字'
 classes = os.listdir(path)
 #
 x = [i[0] for i in enumerate(classes)]
