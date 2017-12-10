@@ -1,6 +1,7 @@
-# 2015级机器学习方向课程实训
+# 2015级机器学习方向课程实训  
 
-## 2.Vehicle_License_Plate_Recognition  
+## 2.Vehicle_License_Plate_Recognition
+
 描述：使用**卷积神经网络**对分割好的**车牌字符**进行识别
 
 ### 我的答案
