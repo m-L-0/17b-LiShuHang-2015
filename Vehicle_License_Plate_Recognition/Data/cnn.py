@@ -1,64 +1,60 @@
-#　-*- coding: utf-8 -*-
-
-from tensorflow.python.framework import graph_util
 import tensorflow as tf
+import os
 import numpy as np
-FLAGS = tf.app.flags.FLAGS
-tf.app.flags.DEFINE_string('my_list', '/home/vbuo/m-L-1/save', """存放模型的目录""")
-
-train_batch = 300  # 训练集每批次样本数
-validate_batch = 100  # 验证集每批次样本数
-iterations = 61  # 训练次数
+import random
 
 
 # 设计一个类，用于读取tfrecord文件和对训练集验证集的批量处理
 class File:
-    def __init__(self, path):
-        self.path = path
-
-    def filenamequeue(self):
-        filename_queue = tf.train.string_input_producer([self.path])
-        return filename_queue
-
-    def readtfrecord(self):
+    # 读取tfrecord文件
+    def readtfrecord(data_type='train', batch_size=10):
+        filename_queue = tf.train.string_input_producer(
+            ['/home/vbuo/m-L-1/' + data_type + '.tfrecords'])
+        # 读取并解析一个tfrecord
         reader = tf.TFRecordReader()
-        _, example = reader.read(self.filenamequeue())  #返回文件名和文件
+        _, serialized_example = reader.read(filename_queue)
         features = tf.parse_single_example(
-            example,
+            serialized_example,
             features={
-                'image_raw': tf.FixedLenFeature([], tf.string),
                 'label': tf.FixedLenFeature([], tf.int64),
-            })  #取出包含image和label的feature对象
+                'img_raw': tf.FixedLenFeature([], tf.string),
+            })
+        image = tf.decode_raw(features['img_raw'], tf.uint8)
+        image = tf.reshape(image, [1152])
+        image = tf.cast(image, tf.float32) / 255
+        label = tf.cast(features['label'], tf.int64)
+        img_batch, l_batch = tf.train.shuffle_batch(
+            [image, label],
+            batch_size=batch_size,
+            capacity=500,
+            min_after_dequeue=0)
+        return img_batch, l_batch
 
-        images = tf.decode_raw(features['image_raw'], tf.uint8)
-        images = tf.reshape(images, [1152])
-        labels = tf.cast(features['label'], tf.int64)
-        return images / 255, labels
 
-    # 用于对训练集和验证集进行批量处理
-    def get_batch(self, batch_size):
-        with tf.name_scope('get_batch'):
-            image, label = self.readtfrecord()
-            images, labels = tf.train.shuffle_batch(
-                [image, label],
-                batch_size=batch_size,
-                num_threads=2,
-                capacity=1000 + 3 * batch_size,
-                min_after_dequeue=100)
+    # 数据处理
+    def read_tfrecord(data_type, num):
+        img_b = np.empty([num, 1152])
+        lab = np.empty([num, 34])
+        img, l = File.readtfrecord(data_type, num)
+        with tf.Session() as sess:
+            init_op = tf.global_variables_initializer()
+            sess.run(init_op)
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(coord=coord)
+            img, l = sess.run([img, l])
+            for i in range(num):
+                img_b[i] = img[i]
+                lab[i] = tf.one_hot(l[i], depth=34).eval()
+                if i % 100 == 0:
+                    print(i)
+            coord.request_stop()
+            coord.join(threads)
+        return img_b, lab
 
-            with tf.Session() as sess:
-                sess.run(tf.global_variables_initializer())
-                coord = tf.train.Coordinator()
-                thread = tf.train.start_queue_runners(coord=coord)
-                img = sess.run(images)
-                _lab = sess.run(labels)
 
-                coord.request_stop()
-                coord.join(thread)
-                lab = np.zeros([batch_size, 65], dtype=int)
-                for i in range(batch_size):
-                    lab[i][_lab[i]] = 1
-        return img, lab
+#定义存储地址与名称
+CNN = '/home/vbuo/m-L-1/save'
+cnn = 'License_plate'
 
 
 # 权值初始化
@@ -71,129 +67,199 @@ def weight_variable(shape):
 def bias_variable(shape):
     # 本例中用relu激活函数，所以用一个很小的正偏置较好
     initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial)
+    return tf.Variable(initial) 
 
 
-# 读取tfrecord文件
-train_data = File('n_l_train.tfrecords')
-validate_data = File('n_l_validation.tfrecords')
-# 对验证样本进行批量处理
-val_img, val_label = validate_data.get_batch(validate_batch)
+def conv2d(x, W):
+    #定义卷积层
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-with tf.Graph().as_default() as T:
-    x_ = tf.placeholder(tf.float32, [None, 1152], name='image')
-    y = tf.placeholder(tf.float32, [None, 65], 'label')
 
-    # 把x转为卷积所需要的形式
-    x = tf.reshape(x_, [-1, 48, 24, 1], name='x')
+def max_pool_2x2(x):
+    # 定义池化层
+    return tf.nn.max_pool(
+        x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-    # 第一层卷积: 5×5×1卷积核32个 [5，5，1，32],conv1.shape=[-1, 48, 24, 32],学习32种特征
-    W_conv1 = weight_variable([5, 5, 1, 32])
-    b_conv1 = bias_variable([32])
-    conv1 = tf.nn.relu(
-        tf.nn.conv2d(x, W_conv1, strides=[1, 1, 1, 1], padding='SAME') +
-        b_conv1)
 
-    # 第一个pooling 层[-1, 48, 24, 32]->[-1, 24, 12, 32]
-    pool1 = tf.nn.max_pool(
-        conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-        padding='SAME')
+# min_next_batch_tfr(随机批次载入数据)
+def min_next_batch_tfr(image, label, num=50, num1=500):
+    images = np.zeros((num, 1152))
+    labels = np.zeros((num, 34))
+    for i in range(num):
+        temp = random.randint(0, num1 - 1)
+        images[i, :] = image[temp]
+        labels[i, :] = label[temp]
 
-    # 第二层卷积: 5×5×32卷积核64个 [5，5，32，64],conv2.shape=[-1, 24, 12, 64]
-    w_conv2 = weight_variable([5, 5, 32, 64])
-    b_conv2 = bias_variable([64])
-    conv2 = tf.nn.relu(
-        tf.nn.conv2d(pool1, w_conv2, strides=[1, 1, 1, 1], padding='SAME') +
-        b_conv2)
+    return images, labels
 
-    # 第二个pooling 层,[-1, 24, 12, 64]->[-1, 12, 6, 64]
-    pool2 = tf.nn.max_pool(
-        conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-        padding='SAME')
 
-    # 第三层卷积: 5×5×64卷积核96个 [5，5，64，96],conv3.shape=[-1, 12, 6, 96]
-    w_conv3 = weight_variable([5, 5, 64, 96])
-    b_conv3 = bias_variable([96])
-    conv3 = tf.nn.relu(
-        tf.nn.conv2d(pool2, w_conv3, strides=[1, 1, 1, 1], padding='SAME') +
-        b_conv3)
+x = tf.placeholder(tf.float32, [None, 1152])
+y_ = tf.placeholder(tf.float32, [None, 34])
+keep_prob = tf.placeholder("float")
 
-    # 第二个pooling 层,[-1, 14, 6, 64]->[-1, 6, 3, 96]
-    pool3_ = tf.nn.max_pool(
-        conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-        padding='SAME')
+# 第一层卷积: 5×5×1卷积核32个 [5，5，1，32],conv1.shape=[-1, 48, 24, 32],学习32种特征
+W_conv1 = weight_variable([3, 3, 1, 32])
+b_conv1 = bias_variable([32])
+# 格式转换
+x_image = tf.reshape(x, [-1, 48, 24, 1])
+h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+# 第一个pooling 层[-1, 48, 24, 32]->[-1, 24, 12, 32]
+h_pool1 = max_pool_2x2(h_conv1)
 
-    # flatten层，[-1, 6, 3, 96]->[-1, 6*3*96],即每个样本得到一个6*3*96维的样本
-    pool3 = tf.reshape(pool3_, [-1, 6 * 3 * 96])
+# 第二层卷积: 5×5×32卷积核64个 [5，5，32，64],conv2.shape=[-1, 24, 12, 64]
+W_conv2 = weight_variable([3, 3, 32, 64])
+b_conv2 = bias_variable([64])
+h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+# 第二个pooling 层,[-1, 24, 12, 64]->[-1, 12, 6, 64]
+h_pool2 = max_pool_2x2(h_conv2)
 
-    # 全连接层
-    W_fc1 = weight_variable([6 * 3 * 96, 512])
-    b_fc1 = bias_variable([512])
-    h_fc1 = tf.nn.relu(tf.matmul(pool3, W_fc1) + b_fc1)
+# 第三层卷积: 5×5×64卷积核96个 [5，5，64，96],conv3.shape=[-1, 12, 6, 96]
+W_conv3 = weight_variable([3, 3, 64, 96])
+b_conv3 = bias_variable([96])
+h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
+# 第三个pooling 层,[-1, 14, 6, 64]->[-1, 6, 3, 96]
+h_pool3 = max_pool_2x2(h_conv3)
 
-    # dropout: 输出的维度和h_fc1一样，只是随机部分值被值为零
-    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+# flatten层，[-1, 6, 3, 96]->[-1, 6*3*96],即每个样本得到一个6*3*96维的样本
+W_fc1 = weight_variable([6 * 3 * 96, 1024])
+b_fc1 = bias_variable([1024])
+h_pool2_flat = tf.reshape(h_pool3, [-1, 6 * 3 * 96])
+h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+# 使用drop out防止过拟合（正则化）
+h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
-    # 输出层
-    w_out = weight_variable([512, 65])
-    b_out = bias_variable([65])
-    y_out = tf.matmul(h_fc1_drop, w_out) + b_out
+# 输出层，输入1024维，输出34维，即0~33分类
+W_fc2 = weight_variable([1024, 34])
+b_fc2 = bias_variable([34])
+y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+saver = tf.train.Saver(max_to_keep=1)
 
-    # 1.损失函数
-    cost = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits=y_out, labels=y))
+# 损失函数，交叉熵
+cross_entropy = -tf.reduce_sum(y_ * tf.log(y_conv))
+# 使用adam优化
+train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+# 准确度计算
+correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
-    # 2.优化函数：AdamOptimizer
-    train_op = tf.train.AdamOptimizer().minimize(cost)
+x_train, y_train = File.read_tfrecord('train', 5000)
+x_test, y_test = File.read_tfrecord('test', 1000)
 
-    # 3.预测准确结果统计
-    z = tf.argmax(y_out, 1)
-    q = tf.arg_max(y, 1)
-    correct_prediction = tf.equal(z, q)
-    accuracy = tf.reduce_mean(tf.cast(
-        correct_prediction, tf.float32), name='accuracy')
-
-    test_acc_sum = tf.Variable(0.0)
-    batch_acc = tf.placeholder(tf.float32)
-    new_test_acc_sum = tf.add(test_acc_sum, batch_acc)
-    update = tf.assign(test_acc_sum, new_test_acc_sum)
-    saver = tf.train.Saver(max_to_keep=2)
-
-with tf.Session(graph=T) as sess:
+# 启动多线程
+with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-
-    writer = tf.summary.FileWriter(FLAGS.my_list, sess.graph)
-    ckpt = tf.train.latest_checkpoint(FLAGS.my_list)
     step = 0
+    j = 0
+    losslist = []
+    minloss = 100000
+    # 若模型存在，自动加载模型进会话
+    ckpt = tf.train.latest_checkpoint(CNN)
     if ckpt:
-        check_point_path = '/home/vbuo/m-L-1/save'  # 保存好模型的文件路径
-        ckpt = tf.train.get_checkpoint_state(checkpoint_dir=check_point_path)
-        saver.restore(sess, ckpt.model_checkpoint_path)
+        saver.restore(sess=sess, save_path=ckpt)
+        step = int(ckpt[len(os.path.join(CNN, cnn)) + 1:])
+    ckptname = os.path.join(CNN, cnn)
 
+    # 开启线程
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-    allaccuracy = 0
-    for i in range(iterations):
-        train_accuracy, loss = sess.run(
-            [accuracy, cost],
-            feed_dict={
-                x_: train_data.get_batch(train_batch)[0],
-                y: train_data.get_batch(train_batch)[1],
-                keep_prob: 1.0
-            })
-        print("step %d, accuracy: %g" % (i+1, train_accuracy))
-        train_op.run(feed_dict={
-            x_: train_data.get_batch(train_batch)[0],
-            y: train_data.get_batch(train_batch)[1],
-            keep_prob: 0.5
-        })
-        allaccuracy = allaccuracy + train_accuracy
-    allaccuracy = allaccuracy/(iterations-1)
-    print("Overall accuracy：　%g" % allaccuracy)
+
+    # 训练
+    for i in range(4000):
+        batch = min_next_batch_tfr(x_train, y_train, 50, 5000)
+        train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+        # 每一百次用验证集测试一次
+        if i % 100 == 0:
+            train_accuracy, loss = sess.run(
+                [accuracy, cross_entropy],
+                feed_dict={x: x_test,
+                           y_: y_test,
+                           keep_prob: 1})
+            print("step %d, validating accuracy %g, loss is %g" %
+                  (i, train_accuracy, loss))
+            losslist.append(loss)
+        # 保存损失最低的模型
+        if minloss > loss:
+            minloss = loss
+            saver.save(sess, ckptname, global_step=i)
+        if losslist[-1] > minloss and losslist[-2] > minloss and losslist[-3] > minloss:
+            break
+
+    # 损失函数列表
+    print(losslist)
+    print(minloss)
     coord.request_stop()
     coord.join(threads)
 
-    new_graph = graph_util.convert_variables_to_constants(
-        sess, sess.graph_def, output_node_names=['accuracy'])
-    tf.train.write_graph(new_graph, '', 'graph.pb', as_text=False)
+# # 验证数据集判断模型效果
+# with tf.Session() as sess:
+#     # 运行会话
+#     sess.run(tf.global_variables_initializer())
+#     step = 0
+#     # 若模型存在，自动加载模型进会话
+#     ckpt = tf.train.latest_checkpoint(CNN)
+#     if ckpt:
+#         saver.restore(sess=sess, save_path=ckpt)
+#         step = int(ckpt[len(os.path.join(CNN, cnn)) + 1:])
+
+#     # 开启线程
+#     coord = tf.train.Coordinator()
+#     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+#     # 测试
+#     print("test accuracy %g" % accuracy.eval(
+#         feed_dict={x: x_test,
+#                    y_: y_test,
+#                    keep_prob: 1.0}))
+#     L_lmax = {}.fromkeys(range(34), 0)
+#     L_lsame = {}.fromkeys(range(34), 0)
+#     CL = {
+#         0: '0',
+#         1: '1',
+#         2: '2',
+#         3: '3',
+#         4: '4',
+#         5: '5',
+#         6: '6',
+#         7: '7',
+#         8: '8',
+#         9: '9',
+#         10: 'A',
+#         11: 'B',
+#         12: 'C',
+#         13: 'D',
+#         14: 'E',
+#         15: 'F',
+#         16: 'G',
+#         17: 'H',
+#         18: 'J',
+#         19: 'K',
+#         20: 'L',
+#         21: 'M',
+#         22: 'N',
+#         23: 'P',
+#         24: 'Q',
+#         25: 'R',
+#         26: 'S',
+#         27: 'T',
+#         28: 'U',
+#         29: 'V',
+#         30: 'W',
+#         31: 'X',
+#         32: 'Y',
+#         33: 'Z'
+#     }
+#     prediction_label = tf.argmax(
+#         y_conv.eval(feed_dict={x: x_test,
+#                                keep_prob: 1.0}), 1)
+#     for i in range(len(x_test)):
+#         if i % 100 == 0:
+#             print(i)
+#         L_lmax[int(np.argmax(y_test[i]))] += 1
+#         if np.argmax(y_test[i]) == prediction_label[i].eval():
+#             L_lsame[int(np.argmax(y_test[i]))] += 1
+#     for i in range(34):
+#         recall_rate = L_lsame[i] / L_lmax[i]
+#         print("标签 %s 的召回率为 %f" % (CL[i], recall_rate))
+
+#     coord.request_stop()
+#     coord.join(threads)
