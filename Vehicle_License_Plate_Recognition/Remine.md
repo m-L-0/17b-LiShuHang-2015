@@ -6,7 +6,7 @@
 
 ### 我的答案
 
-1. [将分类好的图片及其标签序号存入到TFRecord文件中。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/Totfrecord1.ipynb)
+1. [将分类好的图片及其标签序号存入到TFRecord文件中。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/Totfrecord.ipynb)
 
 2. [读取TFRecord文件：数据解码，reshape(恢复数据形状)。shuffle_batch。然后还有归一化处理、色彩空间变化、转换为灰色图片等操作。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/Vehicle_License_Plate_Recognition/Data/CNN.ipynb)
 
