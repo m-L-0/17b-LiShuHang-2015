@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/vbuo/m-L-2/save/model.ckpt"
+all_model_checkpoint_paths: "/home/vbuo/m-L-2/save/model.ckpt"
