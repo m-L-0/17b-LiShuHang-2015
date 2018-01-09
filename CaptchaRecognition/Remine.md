@@ -22,4 +22,4 @@
 
 >> [8.利用训练结果提供Web API进行验证码识别（将API规范写入文档）。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/web/Remine.md)
 
->> [9.提供作业文档。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/CaptchaRecognition%E4%BD%9C%E4%B8%9A%E6%96%87%E6%A1%A3.md)
+>> [9.我的总结。](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/CaptchaRecognition%E4%BD%9C%E4%B8%9A%E6%96%87%E6%A1%A3.md)
