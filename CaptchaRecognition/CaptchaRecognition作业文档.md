@@ -1,4 +1,4 @@
-### 数据分布：![](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/static/QQ%E6%88%AA%E5%9B%BE20180109143628.png)![](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/static/QQ%E6%88%AA%E5%9B%BE20180109143652.png)
+### 数据分布： ![](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/static/QQ%E6%88%AA%E5%9B%BE20180109143628.png)![](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/static/QQ%E6%88%AA%E5%9B%BE20180109143652.png)
 
 ### 模型的设计：
 1. 网络结构采用卷积神经网络(cnn)
