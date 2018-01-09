@@ -6,7 +6,7 @@
 
 ### 我的答案
 
->> 1.统计数据。[](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/NUM.ipynb)
+1.统计数据。[](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/NUM.ipynb)
 
 >> 2.将数据集制作成TFRecord文件。[](https://github.com/m-L-0/17b-LiShuHang-2015/blob/master/CaptchaRecognition/totfrecord.py)
         
