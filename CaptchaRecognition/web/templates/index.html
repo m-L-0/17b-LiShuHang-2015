@@ -1,0 +1,15 @@
+{# templates/index.html #} {% extends "bootstrap/base.html" %} {% import "bootstrap/wtf.html" as wtf %} 
+{% block title %} 识别验证码 {% endblock %} {% block styles %} {{super()}}
+<link rel="stylesheet" href="{{ url_for('.static', filename='index.css') }}"> {% endblock %} {% block navbar %}
+<div class="all">
+    <div class="title">
+        <h1>验证码识别</h1>
+    </div>
+    <div class="top">
+        {{ wtf.quick_form(form) }}
+    </div>
+    <div class="bottom">
+        {% if result %}预测结果： {{ result }}{% else %}{% endif %}
+    </div>
+</div>
+{% endblock %} {% block content %} {% endblock %}
